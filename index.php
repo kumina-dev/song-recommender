@@ -4,25 +4,39 @@ ini_set('include_path', '.:/home/kumina/kumina.dev/prod/utils:/home/kumina/kumin
 
 require_once('config.php');
 
-// Function to get Spotify access token
+// Function for Spotify access token
 function getAccessToken($clientId, $clientSecret) {
-    $credentials = base64_encode($clientId . ':' . $clientSecret);
+    $url = 'https://kumina.dev/api/spotify/accessToken.php';
 
-    $options = [
-        'http' => [
-            'header' => 'Authorization: Basic ' . $credentials,
+    $data = json_encode(array(
+        'clientId' => $clientId,
+        'clientSecret' => $clientSecret
+    ));
+
+    $options = array(
+        'http' => array(
+            'header' => "Content-Type: application/json\r\n",
             'method' => 'POST',
-            'content' => 'grant_type=client_credentials',
-        ],
-    ];
+            'content' => $data
+        )
+    );
 
     $context = stream_context_create($options);
-    $result = file_get_contents('https://accounts.spotify.com/api/token', false, $context);
+    $result = file_get_contents($url, false, $context);
 
-    return json_decode($result)->access_token;
+    if ($result !== false) {
+        $decoded = json_decode($result, true);
+        if (isset($decoded['access_token'])) {
+            return $decoded['access_token'];
+        } else {
+            return 'Error: Access token not found in response.' . $result;
+        }
+    } else {
+        return 'Error: Failed to fetch access token.';
+    }
 }
 
-// Get Spotify access token
+// Get access token
 $accessToken = getAccessToken($clientId, $clientSecret);
 
 // Function to extract track ID from Spotify URL
@@ -69,6 +83,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $trackId = getTrackIdFromUrl($input);
 
     if ($trackId) {
+        $accessToken = getAccessToken($clientId, $clientSecret);
+        $songInfoUrl = "https://api.spotify.com/v1/tracks/$trackId";
+        $options = [
+            'http' => [
+                'header' => "Authorization: Bearer $accessToken",
+                'method' => 'GET',
+            ],
+        ];
+        $context = stream_context_create($options);
+        $songInfoResult = file_get_contents($songInfoUrl, false, $context);
+        $songInfo = json_decode($songInfoResult);
+
+        if ($songInfo === FALSE) {
+            die('Error fetching song information from Spotify API: ' . error_get_last()['message']);
+        }
+
+        if ($songInfo && isset($songInfo->name) && isset($songInfo->artists)) {
+            $songName = $songInfo->name;
+            $artistNames = implode(', ', array_column($songInfo->artists, 'name'));
+            echo '<script>';
+            echo 'document.addEventListener("DOMContentLoaded", function() {';
+            echo 'document.getElementById("song_name_container").innerHTML = "' . htmlspecialchars($songName) . ' by ' . htmlspecialchars($artistNames) . '";';
+            echo '});';
+            echo '</script>';
+        } else {
+            die('Error: Song information not found in response.');
+        }
+        
         $seedTrack = $trackId;
         $result = getSongRecommendations($accessToken, $seedTrack);
 
@@ -136,7 +178,7 @@ include_once("head.php");
     <?php include_once("home/navbar.php"); ?>
 
     <main>
-        <div class="container mx-auto mt-12 md:mt-24">
+        <div class="container mx-auto mt-12 mb-24 md:mt-24 md:mb-48">
             <div class="grid gap-4 m-8 md:m-0 md:grid-cols-3">
                 <!-- Second column -->
                 <div class="order-1 md:order-none">
@@ -163,13 +205,15 @@ include_once("head.php");
                                 <form action="#" method="post" id="song_form">
                                     <input type="text" name="song_url" id="song_url" placeholder="Enter Song URL" class="block w-full p-4 bg-transparent border-b border-gray-400 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50" required>
                                     <button class="mt-4 bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 focus:outline-none focus:bg-purple-700">Get Recommendations</button>
+                                    <div id="song_name_container" class="mt-4"></div>
                                 </form>
                             </div>
                             
                             <!-- Recommendations -->
-                            <div class="bg-gray-800 p-4 rounded-lg">
+                            <div class="bg-gray-800 p-4 rounded-lg relative">
                                 <h2 class="text-lg font-medium mb-4 md:text-xl">Recommended Tracks</h2>
                                 <?php echo $recommendedTracks; ?>
+                                <button onclick="refreshRecommendations()" class="absolute top-0 right-0 mt-2 mr-2 text-gray-500 hover:text-gray-700">Refresh</button>
                             </div>
                         </div>
                     </div>
@@ -177,5 +221,11 @@ include_once("head.php");
             </div>
         </div>
     </main>
+
+    <script>
+        function refreshRecommendations() {
+            location.reload();
+        }
+    </script>
 </body>
 </html>
