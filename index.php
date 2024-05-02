@@ -213,7 +213,7 @@ include_once("head.php");
                             <div class="bg-gray-800 p-4 rounded-lg relative">
                                 <h2 class="text-lg font-medium mb-4 md:text-xl">Recommended Tracks</h2>
                                 <?php echo $recommendedTracks; ?>
-                                <button onclick="refreshRecommendations()" class="absolute top-0 right-0 mt-2 mr-2 text-gray-500 hover:text-gray-700">Refresh</button>
+                                <button id="refreshButton" onclick="refreshRecommendations()" class="hidden absolute top-0 right-0 mt-2 mr-2 text-gray-500 hover:text-gray-700">Refresh</button>
                             </div>
                         </div>
                     </div>
@@ -226,6 +226,14 @@ include_once("head.php");
         function refreshRecommendations() {
             location.reload();
         }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            <?php
+            if ($recommendations && isset($recommendations->tracks) && !empty($recommendations->tracks)) {
+                echo 'document.getElementById("refreshButton").classList.remove("hidden");';
+            }
+            ?>
+        });
     </script>
 </body>
 </html>
