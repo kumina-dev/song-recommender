@@ -8,152 +8,97 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 use GuzzleHttp\Client;
 
-define('SPOTIFY_API_BASE_URL', 'https://api.spotify.com/v1');
-define('SPOTIFY_ACCESS_TOKEN_URL', 'https://accounts.spotify.com/api/token');
+define('API_URL', 'https://kumina.dev/api');
+define('API_KEY', 'asXsG3G5');
 
-// Function for Spotify access token
-function getAccessToken($clientId, $clientSecret) {
-    $postData = http_build_query([
-        'grant_type' => 'client_credentials',
-    ]);
-    $clientCredentials = base64_encode("$clientId:$clientSecret");
-
+// Function to get recommendations from API
+function getRecommendations($apiKey, $songUrl) {
     $client = new Client();
-    $response = $client->post(SPOTIFY_ACCESS_TOKEN_URL, [
-        'headers' => [
-            'Authorization' => 'Basic ' . $clientCredentials,
-            'Content-Type' => 'application/x-www-form-urlencoded',
-        ],
-        'body' => $postData
-    ]);
-
-    $data = json_decode($response->getBody(), true);
-    return $data['access_token'] ?? null;
-}
-
-// Function to make HTTP GET request
-function makeGetRequest($url, $accessToken) {
-    $client = new Client();
-    $response = $client->get($url, [
-        'headers' => [
-            'Authorization' => 'Bearer ' . $accessToken
-        ]
-    ]);
-
-    return $response->getBody()->getContents();
-}
-
-// Function to get track ID from URL
-function getTrackIdFromUrl($url) {
-    preg_match('/track\/([a-zA-Z0-9]+)/', $url, $matches);
-    return $matches[1] ?? false;
-}
-
-// Function to get playlist ID from URL
-function getPlaylistIdFromUrl($url) {
-    preg_match('/playlist\/([a-zA-Z0-9]+)/', $url, $matches);
-    return $matches[1] ?? false;
-}
-
-// Function to get recommendations from Spotify
-function getRecommendations($accessToken, $endpoint) {
     try {
-        $response = makeGetRequest(SPOTIFY_API_BASE_URL . $endpoint, $accessToken);
-        return json_decode($response, true);
+        $response = $client->post(API_URL . '/recommendations', [
+            'headers' => [
+                'Authorization' => $apiKey,
+                'Content-Type' => 'application/x-www-form-urlencoded',
+            ],
+            'form_params' => [
+                'song_url' => $songUrl,
+            ],
+        ]);
+
+        return json_decode($response->getBody(), true);
     } catch (Exception $e) {
         return ['error' => 'Error fetching recommendations: ' . $e->getMessage()];
     }
 }
 
-// Function to get recommendations from track ID
-function getRecommendationsFromTrackId($accessToken, $trackId) {
-    return getRecommendations($accessToken, "/recommendations?seed_tracks=$trackId");
-}
+// Function to get recommendations from API using song name and artist name
+function getRecommendationsSongName($apiKey, $songName, $artistName) {
+    $client = new Client();
+    try {
+        $response = $client->post(API_URL, [
+            'headers' => [
+                'Authorization' => $apiKey,
+                'Content-Type' => 'application/x-www-form-urlencoded',
+            ],
+            'form_params' => [
+                'song_name' => $songName,
+                'artist_name' => $artistName,
+            ],
+        ]);
 
-// Function to get recommendations from song name and artist
-function getRecommendationsFromSongAndArtist($accessToken, $songName, $artistName) {
-    $searchUrl = SPOTIFY_API_BASE_URL . "/search?q=$songName%20artist:$artistName&type=track&limit=1";
-
-    $response = makeGetRequest($searchUrl, $accessToken);
-    $searchResult = json_decode($response, true);
-
-    if (isset($searchResult['tracks']['items'][0]['id'])) {
-        $trackId = $searchResult['tracks']['items'][0]['id'];
-        return getRecommendationsFromTrackId($accessToken, $trackId);
-    } else {
-        return ['error' => 'No recommendations found for the given song and artist.'];
+        return json_decode($response->getBody(), true);
+    } catch (Exception $e) {
+        return ['error' => 'Error fetching recommendations: ' . $e->getMessage()];
     }
 }
 
-// Function to get recommendations from playlist ID
-function getRecommendationsFromPlaylist($accessToken, $playlistId) {
-    $playlistUrl = SPOTIFY_API_BASE_URL . "/playlists/$playlistId/tracks";
-
-    $response = makeGetRequest($playlistUrl, $accessToken);
-    $playlistData = json_decode($response, true);
-
-    if (isset($playlistData['items']) && !empty($playlistData['items'])) {
-        $trackIds = array_column($playlistData['items'], 'track.id');
-
-        if (!empty($trackIds)) {
-            $seed = $trackIds[array_rand($trackIds)];
-            return getRecommendationsFromTrackId($accessToken, $seed);
-        } else {
-            return ['error' => 'No recommendations found for the given playlist.'];
-        }
-    } else {
-        return ['error' => 'No recommendations found for the given playlist.'];
+function getTrackFromId($trackId) {
+    $client = new Client();
+    try {
+        $response = $client->post(API_URL . '/song-info', [
+            'headers' => [
+                'Authorization' => API_KEY,
+                'Content-Type' => 'application/x-www-form-urlencoded',
+            ],
+            'form_params' => [
+                'track_id' => $trackId,
+            ],
+        ]);
+        
+        return json_decode($response->getBody(), true);
+    } catch (Exception $e) {
+        return ['error' => 'Error fetching track info: ' . $e->getMessage()];
     }
 }
 
 $recommendedTracks = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $apiKey = API_KEY;
     $inputType = isset($_POST['input_type']) ? $_POST['input_type'] : '';
 
-    $accessToken = getAccessToken($clientId, $clientSecret);
-
     if ($inputType === 'song_url') {
-        $input = isset($_POST['song_url']) ? $_POST['song_url'] : '';
+        $songUrl = isset($_POST['song_url']) ? $_POST['song_url'] : '';
+        $recommendedTracks = getRecommendations($apiKey, $songUrl);
 
-        $trackId = getTrackIdFromUrl($input);
-        if ($trackId) {
-            $songInfoUrl = SPOTIFY_API_BASE_URL . "/tracks/$trackId";
-            $options = [
-                'http' => [
-                    'header' => 'Authorization: Bearer ' . $accessToken,
-                ],
-            ];
-            $context = stream_context_create($options);
-            $songInfoResult = file_get_contents($songInfoUrl, false, $context);
-            $songInfo = json_decode($songInfoResult);
-
-            if ($songInfo === FALSE) {
-                die('Error fetching song information from Spotify API: ' . error_get_last()['message']);
-            }
-
-            if ($songInfo && isset($songInfo->name) && isset($songInfo->artists)) {
-                $songName = $songInfo->name;
-                $artistNames = implode(', ', array_column($songInfo->artists, 'name'));
-                echo '<script>';
-                echo 'document.addEventListener("DOMContentLoaded", function() {';
-                echo 'document.getElementById("song_name_container").innerHTML = "' . htmlspecialchars($songName) . ' by ' . htmlspecialchars($artistNames) . '";';
-                echo '});';
-                echo '</script>';
-            } else {
-                die('Error: Song information not found in response.');
-            }
-            
-            $recommendedTracks = getRecommendationsFromTrackId($accessToken, $trackId);
+        $trackId = isset($recommendedTracks['seeds'][0]['id']) ? $recommendedTracks['seeds'][0]['id'] : '';
+        $trackInfo = getTrackFromId($trackId);
+        
+        if ($trackInfo && isset($trackInfo['name']) && isset($trackInfo['artists'])) {
+            $songName = $trackInfo['name'];
+            $artistNames = implode(', ', array_column($trackInfo['artists'], 'name'));
+            echo '<script>';
+            echo 'document.addEventListener("DOMContentLoaded", function() {';
+            echo 'document.getElementById("song_name_container").innerHTML = "' . htmlspecialchars($songName) . ' by ' . htmlspecialchars($artistNames) . '";';
+            echo '});';
+            echo '</script>';
         } else {
-            $recommendedTracks = ['error' => 'Invalid Spotify URL. Please enter a valid track URL.'];
+            die('Error: Failed to get track info.');
         }
     } else if ($inputType === 'song_name_artist') {
-        $input = isset($_POST['song_name_artist']) ? $_POST['song_name_artist'] : '';
-
-        $inputParts = explode(' by ', $input);
-        $songName = trim($inputParts[0]);
-        $artistName = isset($inputParts[1]) ? trim($inputParts[1]) : '';
+        $songName = isset($_POST['song_name']) ? $_POST['song_name'] : '';
+        $artistName = isset($_POST['artist_name']) ? $_POST['artist_name'] : '';
+        $recommendedTracks = getRecommendationsSongName($apiKey, $songName, $artistName);
 
         if (!empty($songName) && !empty($artistName)) {
             echo '<script>';
@@ -164,17 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             die('Error: Invalid song name or artist name.');
         }
-
-        $recommendedTracks = getRecommendationsFromSongAndArtist($accessToken, $songName, $artistName);
-    } else if ($inputType === 'playlist_url') {
-        $input = isset($_POST['playlist_url']) ? $_POST['playlist_url'] : '';
-
-        $playlistId = getPlaylistIdFromUrl($input);
-        if ($playlistId) {
-            $recommendedTracks = getRecommendationsFromPlaylist($accessToken, $playlistId);
-        } else {
-            $recommendedTracks = ['error' => 'Invalid Spotify URL. Please enter a valid playlist URL.'];
-        }
+    } else {
+        $recommendedTracks = ['error' => 'Invalid input type.'];
     }
 }
 ?>
@@ -217,16 +153,18 @@ include_once("head.php");
                                 <p class="text-gray-400 text-base italic -mt-2 mb-4">Powered by Spotify API</p>
                                 
                                 <form action="#" method="post" id="song_form">
-                                    <select name="input_type" id="input_type" class="block w-full p-4 bg-transparent border border-gray-400 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                                        <option value="song_url">Song URL</option>
-                                        <option value="song_name_artist">Song Name & Artist</option>
-                                        <!-- <option value="playlist_url">Playlist URL</option> -->
+                                    <select name="input_type" id="input_type" class="block w-full p-4 bg-transparent appearance-none text-gray-300 border-b border-gray-400 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                        <option value="song_url" class="text-gray-400" selected>Song URL</option>
+                                        <option value="song_name_artist" class="text-gray-400">Song Name and Artist</option>
                                     </select>
 
-                                    <input type="text" name="song_url" id="song_url" placeholder="Enter Song URL" class="block w-full p-4 bg-transparent border-b border-gray-400 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                                    <input type="text" name="song_name_artist" id="song_name_artist" placeholder="Enter Song & Artist Name (e.g., Song Title by Artist)" class="hidden block w-full p-4 bg-transparent border-b border-gray-400 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                                    <!-- <input type="text" name="playlist_url" id="playlist_url" placeholder="Enter Playlist URL" class="hidden block w-full p-4 bg-transparent border-b border-gray-400 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"> -->
-
+                                    <input type="text" name="song_url" id="song_url" placeholder="Enter song URL" class="block w-full p-4 bg-transparent border-b border-gray-400 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                    
+                                    <div class="hidden grid grid-cols-2 gap-4" id="song_name_artist">
+                                        <input type="text" name="song_name" id="song_name" placeholder="Enter song name" class="block w-full p-4 bg-transparent border-b border-gray-400 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                        <input type="text" name="artist_name" id="artist_name" placeholder="Enter artist name" class="block w-full p-4 bg-transparent border-b border-gray-400 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                    </div>
+                                    
                                     <button class="mt-4 bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 focus:outline-none focus:bg-purple-700">Get Recommendations</button>
                                     <div id="song_name_container" class="mt-4"></div>
                                 </form>
@@ -242,27 +180,27 @@ include_once("head.php");
                                             echo '<p>' . htmlspecialchars($recommendedTracks['error']) . '</p>';
                                         } else {
                                             foreach ($recommendedTracks['tracks'] as $track) {
-                                                $image = !empty($track['album']['images']) ? htmlspecialchars($track['album']['images'][1]['url'], ENT_QUOTES) : '';
+                                                $image = $track['album']['images'][0]['url'];
                                                 $trackName = htmlspecialchars($track['name'], ENT_QUOTES);
-                                                
-                                                // Sanitize each artist name individually
+                                                 
                                                 $artists = array_map(function($artist) {
                                                     return htmlspecialchars($artist['name'], ENT_QUOTES);
                                                 }, $track['artists']);
                                                 $artists = implode(', ', $artists);
 
+                                                $uri = htmlspecialchars($track['uri'], ENT_QUOTES);
                                                 $url = htmlspecialchars($track['external_urls']['spotify'], ENT_QUOTES);
     
                                                 echo '<li>';
                                                 echo '<div>';
-                                                echo '<img src="'. $image. '" alt="'. $trackName . '" width="100" height="100">';
+                                                echo '<img src="' . $image . '" alt="' . $trackName . '" width="100" height="100">';
                                                 echo '</div>';
                                                 echo '<div class="song-details">';
                                                 echo '<span>' . $trackName . '</span>';
-                                                echo '<span>' . htmlspecialchars($artists, ENT_QUOTES) . '</span>';
+                                                echo '<span>' . htmlspecialchars($artists) . '</span>';
                                                 echo '</div>';
-                                                echo '<div class="logo">';
-                                                echo '<a href="' . $url . '" target="_blank">';
+                                                echo '<div class="logo" id="logo">';
+                                                echo '<a href="' . $url . '" onclick="openSpotify(\'' . $uri . '\', \'' . $url . '\')" target="_blank">';
                                                 echo '<i class="fab fa-spotify"></i>';
                                                 echo '</a>';
                                                 echo '</div>';
@@ -290,18 +228,29 @@ include_once("head.php");
 
         document.addEventListener("DOMContentLoaded", function() {
             <?php
-            if (isset($recommendations->tracks) && !empty($recommendations->tracks)) {
+            if (isset($recommendedTracks['tracks']) && !empty($recommendedTracks['tracks'])) {
                 echo 'document.getElementById("refreshButton").classList.remove("hidden");';
             }
             ?>
         });
 
+        function openSpotify(uri, url) {
+            var uriWindow = window.open(uri, '_blank');
+
+            if (uriWindow) {
+                uriWindow.focus();
+            } else {
+                setTimeout(function() {
+                    window.open(url, '_blank');
+                }, 1000);
+            }
+        }
+
         document.getElementById('input_type').addEventListener('change', function() {
-            var selectedOption = this.value;
+            var selectedValue = this.value;
             document.getElementById('song_url').classList.add('hidden');
             document.getElementById('song_name_artist').classList.add('hidden');
-            // document.getElementById('playlist_url').classList.add('hidden');
-            document.getElementById(selectedOption).classList.remove('hidden');
+            document.getElementById(selectedValue).classList.remove('hidden');
         });
     </script>
 </body>
