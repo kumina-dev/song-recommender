@@ -124,96 +124,92 @@ include_once("head.php");
 ?>
 
 <link rel="stylesheet" href="css/style.css?<?php echo time();?>">
-<body class="bg-gray-900 text-white">
+<body class="bg-gray-900 text-gray-300">
     <?php include_once("home/navbar.php"); ?>
 
     <main>
         <div class="container mx-auto mt-12 mb-24 md:mt-24 md:mb-48">
-            <div class="grid gap-4 m-8 md:m-0 md:grid-cols-3">
-                <!-- Second column -->
+            <div class="grid gap-8 m-8 md:m-0 md:grid-cols-3">
+                <!-- History -->
                 <div class="order-1 md:order-none">
-                    <!-- History -->
-                    <div class="flex flex-col justify-between gap-2 rounded-lg border border-purple-800 p-4 md:flex-row md:items-center">
+                    <div class="flex flex-col justify-between gap-4 rounded-lg border border-purple-800 p-6 md:flex-row md:items-center bg-gray-800 shadow-lg">
                         <div class="flex flex-col gap-2 md:flex-row md:items-center md:gap-4">
-                            <p class="text-purple-100">Search History</p>
+                            <p class="text-purple-100 text-lg font-semibold">Search History</p>
                         </div>
-
-                        <p class="w-fit rounded-md bg-purple-800 px-4 py-1">Soon&#8482;</p>
+                        <p class="w-fit rounded-md bg-purple-800 px-4 py-2 soon-animation text-white font-medium">Soon&#8482;</p>
                     </div>
                 </div>
-            
-                <!-- First column -->
-                <div class="order-2 md:order-none md:col-span-2 md:col-start-1 md:row-start-1">
-                    <div class="grid grid-cols-subgrid">
-                        <div class="md:col-start-2">
-                            <!-- Form -->
-                            <div class="bg-gray-800 p-4 mb-4 rounded-lg">
-                                <h1 class="text-xl font-bold mb-4 inline-block md:text-2xl">Song Recommender</h1>
-                                <span> - <em class="text-sm inline-block">Public Demo</em></span>
-                                <p class="text-gray-400 text-base italic -mt-2 mb-4">Powered by Spotify API</p>
-                                
-                                <form action="#" method="post" id="song_form">
-                                    <select name="input_type" id="input_type" class="block w-full p-4 bg-transparent appearance-none text-gray-300 border-b border-gray-400 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                                        <option value="song_url" class="text-gray-400" selected>Song URL</option>
-                                        <option value="song_name_artist" class="text-gray-400">Song Name and Artist</option>
+
+                <!-- Form and Recommendations -->
+                <div class="order-2 md:order-none md:col-span-2">
+                    <div class="bg-gray-800 p-8 rounded-lg shadow-lg">
+                        <!-- Form -->
+                        <div class="mb-8">
+                            <h1 class="text-3xl font-bold mb-4">Song Recommender <span class="text-sm text-gray-400">- Public Demo</span></h1>
+                            <p class="text-gray-400 italic mb-6">Powered by Spotify API</p>
+                            <form action="#" method="post" id="song_form">
+                                <div class="mb-6">
+                                    <label for="input_type" class="block mb-2 text-sm font-medium text-gray-400">Input Type</label>
+                                    
+                                    <select name="input_type" id="input_type" class="block w-full p-4 bg-gray-700 border border-gray-600 rounded-md text-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                        <option value="song_url" selected>Song URL</option>
+                                        <option value="song_name_artist">Song Name and Artist</option>
                                     </select>
-
-                                    <input type="text" name="song_url" id="song_url" placeholder="Enter song URL" class="block w-full p-4 bg-transparent border-b border-gray-400 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                                    
-                                    <div class="hidden grid grid-cols-2 gap-4" id="song_name_artist">
-                                        <input type="text" name="song_name" id="song_name" placeholder="Enter song name" class="block w-full p-4 bg-transparent border-b border-gray-400 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                                        <input type="text" name="artist_name" id="artist_name" placeholder="Enter artist name" class="block w-full p-4 bg-transparent border-b border-gray-400 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                                    </div>
-                                    
-                                    <button class="mt-4 bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 focus:outline-none focus:bg-purple-700">Get Recommendations</button>
-                                    <div id="song_name_container" class="mt-4"></div>
-                                </form>
-                            </div>
-                            
-                            <!-- Recommendations -->
-                            <div class="bg-gray-800 p-4 rounded-lg relative">
-                                <h2 class="text-lg font-medium mb-4 md:text-xl">Recommended Tracks</h2>
-                                <div class="recommended-tracks">
-                                    <?php
-                                    if (!empty($recommendedTracks)) {
-                                        if (isset($recommendedTracks['error'])) {
-                                            echo '<p>' . htmlspecialchars($recommendedTracks['error']) . '</p>';
-                                        } else {
-                                            foreach ($recommendedTracks['tracks'] as $track) {
-                                                $image = $track['album']['images'][0]['url'];
-                                                $trackName = htmlspecialchars($track['name'], ENT_QUOTES);
-                                                 
-                                                $artists = array_map(function($artist) {
-                                                    return htmlspecialchars($artist['name'], ENT_QUOTES);
-                                                }, $track['artists']);
-                                                $artists = implode(', ', $artists);
-
-                                                $uri = htmlspecialchars($track['uri'], ENT_QUOTES);
-                                                $url = htmlspecialchars($track['external_urls']['spotify'], ENT_QUOTES);
-    
-                                                echo '<li>';
-                                                echo '<div>';
-                                                echo '<img src="' . $image . '" alt="' . $trackName . '" width="100" height="100">';
-                                                echo '</div>';
-                                                echo '<div class="song-details">';
-                                                echo '<span>' . $trackName . '</span>';
-                                                echo '<span>' . htmlspecialchars($artists) . '</span>';
-                                                echo '</div>';
-                                                echo '<div class="logo" id="logo">';
-                                                echo '<a href="' . $url . '" onclick="openSpotify(\'' . $uri . '\', \'' . $url . '\')" target="_blank">';
-                                                echo '<i class="fab fa-spotify"></i>';
-                                                echo '</a>';
-                                                echo '</div>';
-                                                echo '</li>';
-                                            }
-                                        }
-                                    } else {
-                                        echo '<p>Enter a song and click "Get Recommendations" to get song recommendations.</p>';
-                                    }
-                                    ?>
                                 </div>
-                                <button id="refreshButton" onclick="refreshRecommendations()" class="hidden absolute top-0 right-0 mt-2 mr-2 text-gray-500 hover:text-gray-700">Refresh</button>
-                            </div>
+                                
+                                <div id="song_url_input" class="mb-6">
+                                    <label for="song_url" class="block mb-2 text-sm font-medium text-gray-400">Song URL</label>
+                                    <input type="text" name="song_url" id="song_url" placeholder="Enter song URL" class="block w-full p-4 bg-gray-700 border border-gray-600 rounded-md text-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                </div>
+                                
+                                <div id="song_name_artist_input" class="hidden mb-6">
+                                    <label for="song_name" class="block mb-2 text-sm font-medium text-gray-400">Song Name</label>
+                                    <input type="text" name="song_name" id="song_name" placeholder="Enter song name" class="block w-full p-4 bg-gray-700 border border-gray-600 rounded-md text-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 mb-4">
+                                    <label for="artist_name" class="block mb-2 text-sm font-medium text-gray-400">Artist Name</label>
+                                    <input type="text" name="artist_name" id="artist_name" placeholder="Enter artist name" class="block w-full p-4 bg-gray-700 border border-gray-600 rounded-md text-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                </div>
+                                
+                                <button type="submit" class="w-full py-4 bg-purple-600 text-white font-semibold rounded-md shadow-lg hover:bg-purple-700 focus:outline-none focus:bg-purple-700">Get Recommendations</button>
+                                <div id="song_name_container" class="mt-4"></div>
+                            </form>
+                        </div>
+
+                        <!-- Recommendations -->
+                        <div>
+                            <h2 class="text-2xl font-semibold mb-6">Recommended Tracks</h2>
+                            <ul class="recommended-tracks list-none p-0">
+                                <?php
+                                if (!empty($recommendedTracks)) {
+                                    if (isset($recommendedTracks['error'])) {
+                                        echo '<li>' . htmlspecialchars($recommendedTracks['error']) . '</li>';
+                                    } else {
+                                        foreach ($recommendedTracks['tracks'] as $track) {
+                                            $image = $track['album']['images'][0]['url'];
+                                            $trackName = htmlspecialchars($track['name'], ENT_QUOTES);
+
+                                            $artists = array_map(function($artist) { return htmlspecialchars($artist['name'], ENT_QUOTES); }, $track['artists']);
+                                            $artists = implode(', ', $artists);
+
+                                            $uri = htmlspecialchars($track['uri'], ENT_QUOTES);
+                                            $url = htmlspecialchars($track['external_urls']['spotify'], ENT_QUOTES);
+
+                                            echo '<li class="flex items-center gap-4 mb-4">';
+                                            echo '<img src="' . $image . '" alt="' . $trackName . '" class="rounded-md">';
+                                            echo '<div class="flex-grow">';
+                                            echo '<p class="text-lg font-semibold">' . $trackName . '</p>';
+                                            echo '<p class="text-gray-400">' . htmlspecialchars($artists) . '</p>';
+                                            echo '</div>';
+                                            echo '<a href="' . $url . '" onclick="openSpotify(\'' . $uri . '\', \'' . $url . '\')" target="_blank" class="text-green-500 text-2xl">';
+                                            echo '<i class="fa-brands fa-spotify"></i>';
+                                            echo '</a>';
+                                            echo '</li>';
+                                        }
+                                    }
+                                } else {
+                                    echo '<li>Enter a song and click "Get Recommendations" to get song recommendations.</li>';
+                                }
+                                ?>
+                            </ul>
                         </div>
                     </div>
                 </div>
@@ -222,9 +218,17 @@ include_once("head.php");
     </main>
 
     <script>
-        function refreshRecommendations() {
-            location.reload();
-        }
+        document.getElementById('input_type').addEventListener('change', function() {
+            var songUrlInput = document.getElementById('song_url_input');
+            var songNameArtistInput = document.getElementById('song_name_artist_input');
+            if (this.value === 'song_name_artist') {
+                songUrlInput.classList.add('hidden');
+                songNameArtistInput.classList.remove('hidden');
+            } else {
+                songUrlInput.classList.remove('hidden');
+                songNameArtistInput.classList.add('hidden');
+            }
+        });
 
         document.addEventListener("DOMContentLoaded", function() {
             <?php
@@ -246,12 +250,9 @@ include_once("head.php");
             }
         }
 
-        document.getElementById('input_type').addEventListener('change', function() {
-            var selectedValue = this.value;
-            document.getElementById('song_url').classList.add('hidden');
-            document.getElementById('song_name_artist').classList.add('hidden');
-            document.getElementById(selectedValue).classList.remove('hidden');
-        });
+        function refreshRecommendations() {
+            location.reload();
+        }
     </script>
 </body>
 </html>
