@@ -1,6 +1,6 @@
 <?php
 
-ini_set('include_path', '.:/home/kumina/kumina.dev/prod/utils:/home/kumina/kumina.dev/prod/components');
+ini_set('include_path', '.:/home/kumina/kumina.dev/utils:/home/kumina/kumina.dev/components');
 
 require_once('config.php');
 
@@ -125,7 +125,7 @@ include_once("head.php");
 
 <link rel="stylesheet" href="css/style.css?<?php echo time();?>">
 <body class="bg-gray-900 text-gray-300">
-    <?php include_once("home/navbar.php"); ?>
+    <?php include_once("navbar.php"); ?>
 
     <main>
         <div class="container mx-auto mt-12 mb-24 md:mt-24 md:mb-48">
