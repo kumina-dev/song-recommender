@@ -4,12 +4,12 @@ ini_set('include_path', '.:/home/kumina/kumina.dev/utils:/home/kumina/kumina.dev
 
 require_once('config.php');
 
-require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 use GuzzleHttp\Client;
 
 define('API_URL', 'https://kumina.dev/api');
-define('API_KEY', 'asXsG3G5');
+define('API_KEY', $API_KEY);
 
 // Function to get recommendations from API
 function getRecommendations($apiKey, $songUrl) {
@@ -35,7 +35,7 @@ function getRecommendations($apiKey, $songUrl) {
 function getRecommendationsSongName($apiKey, $songName, $artistName) {
     $client = new Client();
     try {
-        $response = $client->post(API_URL, [
+        $response = $client->post(API_URL . '/recommendations', [
             'headers' => [
                 'Authorization' => $apiKey,
                 'Content-Type' => 'application/x-www-form-urlencoded',
@@ -52,7 +52,28 @@ function getRecommendationsSongName($apiKey, $songName, $artistName) {
     }
 }
 
-function getTrackFromId($trackId) {
+// Function to get recommendations from API using playlist URL
+function getRecommendationsPlaylist($apiKey, $playlistUrl) {
+    $client = new Client();
+    try {
+        $response = $client->post(API_URL . '/recommendations', [
+            'headers' => [
+                'Authorization' => $apiKey,
+                'Content-Type' => 'application/x-www-form-urlencoded',
+            ],
+            'form_params' => [
+                'song_url' => $playlistUrl,
+            ],
+        ]);
+
+        return json_decode($response->getBody(), true);
+    } catch (Exception $e) {
+        return ['error' => 'Error fetching recommendations: ' . $e->getMessage()];
+    }
+}
+
+// Function to get track info from API
+function getTrackInfo($trackUrl) {
     $client = new Client();
     try {
         $response = $client->post(API_URL . '/song-info', [
@@ -61,13 +82,33 @@ function getTrackFromId($trackId) {
                 'Content-Type' => 'application/x-www-form-urlencoded',
             ],
             'form_params' => [
-                'track_id' => $trackId,
+                'song_url' => $trackUrl,
             ],
         ]);
         
         return json_decode($response->getBody(), true);
     } catch (Exception $e) {
         return ['error' => 'Error fetching track info: ' . $e->getMessage()];
+    }
+}
+
+// Function to get playlist info from API
+function getPlaylistInfo($playlistUrl) {
+    $client = new Client();
+    try {
+        $response = $client->post(API_URL . '/playlist-info', [
+            'headers' => [
+                'Authorization' => API_KEY,
+                'Content-Type' => 'application/x-www-form-urlencoded',
+            ],
+            'form_params' => [
+                'playlist_url' => $playlistUrl,
+            ],
+        ]);
+        
+        return json_decode($response->getBody(), true);
+    } catch (Exception $e) {
+        return ['error' => 'Error fetching playlist info: ' . $e->getMessage()];
     }
 }
 
@@ -81,8 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $songUrl = isset($_POST['song_url']) ? $_POST['song_url'] : '';
         $recommendedTracks = getRecommendations($apiKey, $songUrl);
 
-        $trackId = isset($recommendedTracks['seeds'][0]['id']) ? $recommendedTracks['seeds'][0]['id'] : '';
-        $trackInfo = getTrackFromId($trackId);
+        $trackInfo = getTrackInfo($songUrl);
         
         if ($trackInfo && isset($trackInfo['name']) && isset($trackInfo['artists'])) {
             $songName = $trackInfo['name'];
@@ -109,6 +149,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             die('Error: Invalid song name or artist name.');
         }
+    } else if ($inputType === 'playlist_url') {
+        $playlistUrl = isset($_POST['playlist_url']) ? $_POST['playlist_url'] : '';
+        $recommendedTracks = getRecommendationsPlaylist($apiKey, $playlistUrl);
+
+        $playlistInfo = getPlaylistInfo($playlistUrl);
+        if ($playlistInfo && isset($playlistInfo['name']) && isset($playlistInfo['owner'])) {
+            $playlistName = $playlistInfo['name'];
+            $playlistOwner = $playlistInfo['owner']['display_name'];
+            echo '<script>';
+            echo 'document.addEventListener("DOMContentLoaded", function() {';
+            echo 'document.getElementById("song_name_container").innerHTML = "' . htmlspecialchars($playlistName) . ' by ' . htmlspecialchars($playlistOwner) . '";';
+            echo '});';
+            echo '</script>';
+        } else {
+            die('Error: Failed to get playlist info.' . $playlistInfo['error']);
+        }
     } else {
         $recommendedTracks = ['error' => 'Invalid input type.'];
     }
@@ -127,18 +183,18 @@ include_once("head.php");
 <body class="bg-gray-900 text-gray-300">
     <?php include_once("navbar.php"); ?>
 
-    <main>
-        <div class="container mx-auto mt-12 mb-24 md:mt-24 md:mb-48">
-            <div class="grid gap-8 m-8 md:m-0 md:grid-cols-3">
+    <main class="flex justify-center items-center min-h-screen">
+        <div class="container mx-auto mt-12 mb-24 md:mt-24 md:mb-48 flex-grow flex justify-center items-center">
+            <div class="gap-8 m-8 md:m-0 md:grid-cols-3">
                 <!-- History -->
-                <div class="order-1 md:order-none">
+                <!-- <div class="order-1 md:order-none">
                     <div class="flex flex-col justify-between gap-4 rounded-lg border border-purple-800 p-6 md:flex-row md:items-center bg-gray-800 shadow-lg">
                         <div class="flex flex-col gap-2 md:flex-row md:items-center md:gap-4">
                             <p class="text-purple-100 text-lg font-semibold">Search History</p>
                         </div>
                         <p class="w-fit rounded-md bg-purple-800 px-4 py-2 soon-animation text-white font-medium">Soon&#8482;</p>
                     </div>
-                </div>
+                </div> -->
 
                 <!-- Form and Recommendations -->
                 <div class="order-2 md:order-none md:col-span-2">
@@ -154,6 +210,7 @@ include_once("head.php");
                                     <select name="input_type" id="input_type" class="block w-full p-4 bg-gray-700 border border-gray-600 rounded-md text-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                                         <option value="song_url" selected>Song URL</option>
                                         <option value="song_name_artist">Song Name and Artist</option>
+                                        <option value="playlist_url">Playlist URL</option>
                                     </select>
                                 </div>
                                 
@@ -168,6 +225,11 @@ include_once("head.php");
                                     <label for="artist_name" class="block mb-2 text-sm font-medium text-gray-400">Artist Name</label>
                                     <input type="text" name="artist_name" id="artist_name" placeholder="Enter artist name" class="block w-full p-4 bg-gray-700 border border-gray-600 rounded-md text-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
                                 </div>
+
+                                <div id="playlist_url_input" class="hidden mb-6">
+                                    <label for="playlist_url" class="block mb-2 text-sm font-medium text-gray-400">Playlist URL</label>
+                                    <input type="text" name="playlist_url" id="playlist_url" placeholder="Enter playlist URL" class="block w-full p-4 bg-gray-700 border border-gray-600 rounded-md text-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                                </div>
                                 
                                 <button type="submit" class="w-full py-4 bg-purple-600 text-white font-semibold rounded-md shadow-lg hover:bg-purple-700 focus:outline-none focus:bg-purple-700">Get Recommendations</button>
                                 <div id="song_name_container" class="mt-4"></div>
@@ -176,14 +238,16 @@ include_once("head.php");
 
                         <!-- Recommendations -->
                         <div>
-                            <h2 class="text-2xl font-semibold mb-6">Recommended Tracks</h2>
+                            <!-- Inlined h2 and refresh button -->
+                            <h2 class="text-2xl font-bold mb-4">Recommended Tracks <button id="refresh-button" class="hidden text-gray-400 hover:text-gray-300"><i class="fa-solid fa-arrow-rotate-right"></i></button></h2>
+                            
                             <ul class="recommended-tracks list-none p-0">
                                 <?php
                                 if (!empty($recommendedTracks)) {
                                     if (isset($recommendedTracks['error'])) {
                                         echo '<li>' . htmlspecialchars($recommendedTracks['error']) . '</li>';
                                     } else {
-                                        foreach ($recommendedTracks['tracks'] as $track) {
+                                        foreach ($recommendedTracks as $track) {
                                             $image = $track['album']['images'][0]['url'];
                                             $trackName = htmlspecialchars($track['name'], ENT_QUOTES);
 
@@ -218,24 +282,33 @@ include_once("head.php");
     </main>
 
     <script>
+        var refreshButton = document.getElementById('refresh-button');
+
+        document.addEventListener('DOMContentLoaded', function() {
+            <?php
+            if (!empty($recommendedTracks)) {
+                echo 'refreshButton.classList.remove("hidden");';
+            }
+            ?>
+        });
+        
         document.getElementById('input_type').addEventListener('change', function() {
             var songUrlInput = document.getElementById('song_url_input');
             var songNameArtistInput = document.getElementById('song_name_artist_input');
-            if (this.value === 'song_name_artist') {
-                songUrlInput.classList.add('hidden');
-                songNameArtistInput.classList.remove('hidden');
-            } else {
+            var playlistUrlInput = document.getElementById('playlist_url_input');
+            if (this.value === 'song_url') {
                 songUrlInput.classList.remove('hidden');
                 songNameArtistInput.classList.add('hidden');
+                playlistUrlInput.classList.add('hidden');
+            } else if (this.value === 'song_name_artist') {
+                songUrlInput.classList.add('hidden');
+                songNameArtistInput.classList.remove('hidden');
+                playlistUrlInput.classList.add('hidden');
+            } else if (this.value === 'playlist_url') {
+                songUrlInput.classList.add('hidden');
+                songNameArtistInput.classList.add('hidden');
+                playlistUrlInput.classList.remove('hidden');
             }
-        });
-
-        document.addEventListener("DOMContentLoaded", function() {
-            <?php
-            if (isset($recommendedTracks['tracks']) && !empty($recommendedTracks['tracks'])) {
-                echo 'document.getElementById("refreshButton").classList.remove("hidden");';
-            }
-            ?>
         });
 
         function openSpotify(uri, url) {
@@ -248,10 +321,6 @@ include_once("head.php");
                     window.open(url, '_blank');
                 }, 1000);
             }
-        }
-
-        function refreshRecommendations() {
-            location.reload();
         }
     </script>
 </body>
